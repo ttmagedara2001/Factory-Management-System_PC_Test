@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Save, AlertTriangle, Play, Square, AlertCircle } from 'lucide-react';
-import { updateStateDetails } from '../services/deviceService.js';
+import { mockDataService } from '../services/MockDataService';
 
 const SettingsWindow = ({
   thresholds,
@@ -157,8 +157,8 @@ const SettingsWindow = ({
 
         // Always use HTTP API for state updates to ensure consistency
         // Payload structure: { status: "RUN/STOP", timestamp: ... }
-        await updateStateDetails(selectedDevice, 'machineControl', {
-          status: command, // Corrected from 'machineControl' to 'status'
+        await mockDataService.sendCommand(selectedDevice, 'machineControl', {
+          status: command,
           timestamp: new Date().toISOString()
         });
 
@@ -222,7 +222,7 @@ const SettingsWindow = ({
 
           try {
             // 1. Send STOP command
-            await updateStateDetails(selectedDevice, 'machineControl', {
+            await mockDataService.sendCommand(selectedDevice, 'machineControl', {
               status: 'STOP',
               reason: `Auto-stop: ${reason}`,
               timestamp: new Date().toISOString()

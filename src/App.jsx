@@ -4,9 +4,9 @@ import Header from './Components/Header';
 import Dashboard from './Components/Dashboard';
 import SettingsWindow from './Components/SettingsWindow';
 import HistoricalWindow from './Components/HistoricalWindow';
-import { webSocketClient } from './services/webSocketClient';
-import { getProductionData, getProductionLog, setUnitsFromBackend } from './services/productionService';
-import { getProductsIn24Hours, getCurrentUnitsFromBackend } from './services/deviceService';
+
+// ── DEMO MODE — all data comes from MockDataService ──────────────────────
+import { mockDataService } from './services/MockDataService';
 
 const INITIAL_SENSOR_DATA = {
   vibration: undefined, pressure: undefined, noise: undefined,
@@ -21,9 +21,11 @@ export default function App() {
   const [isSidebarPinned, setIsSidebarPinned] = useState(false);
   const [bellClicked, setBellClicked] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState(() => localStorage.getItem('selectedDevice') || 'devicetestuc');
-  const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
+
+  // Demo mode — always "connected"
+  const [isWebSocketConnected] = useState(true);
+  const [isConnecting] = useState(false);
 
   const [factoryStatus, setFactoryStatus] = useState('RUNNING');
   const [controlMode, setControlMode] = useState('manual');
@@ -41,14 +43,17 @@ export default function App() {
     { id: 'devicetestuc', name: 'Machine E - Line 5' },
   ]);
 
+  // ── Sensor data initialised from MockDataService snapshot ──────────
   const [sensorData, setSensorData] = useState(() => {
     const initialDevice = localStorage.getItem('selectedDevice') || 'devicetestuc';
-    return { ...INITIAL_SENSOR_DATA, units: getProductionData(initialDevice).units };
+    const snap = mockDataService.getSensorSnapshot(initialDevice);
+    return { ...INITIAL_SENSOR_DATA, ...snap };
   });
 
+  // ── Production log from mock ───────────────────────────────────────
   const [productionLog, setProductionLog] = useState(() => {
     const initialDevice = localStorage.getItem('selectedDevice') || 'devicetestuc';
-    return getProductionLog(initialDevice);
+    return mockDataService.generateProductionLog(initialDevice);
   });
 
   const [thresholds, setThresholds] = useState({
@@ -66,7 +71,10 @@ export default function App() {
   const [oeeData, setOeeData] = useState({ availability: 100, performance: 100, quality: 100, oee: 100 });
   const [overallEfficiency, setOverallEfficiency] = useState(0);
   const [efficiencyTrend, setEfficiencyTrend] = useState(0);
-  const [products24h, setProducts24h] = useState({ count: 0, products: [] });
+  const [products24h, setProducts24h] = useState(() => {
+    const initialDevice = localStorage.getItem('selectedDevice') || 'devicetestuc';
+    return mockDataService.generateProducts24h(initialDevice);
+  });
 
   // Helper: push a data point to in-memory sensor history
   const pushHistory = (device, key, value, timestamp) => {
@@ -79,7 +87,7 @@ export default function App() {
     });
   };
 
-  // Stable data handler — prevents unnecessary re-subscriptions
+  // Stable data handler — processes mock stream events identically to WebSocket
   const handleSensorData = useCallback((data) => {
     // Product detection
     if (data.sensorType === 'product' && typeof data.value === 'object') {
@@ -87,16 +95,21 @@ export default function App() {
       return;
     }
 
-    // MQTTX-style topic/payload messages
+    // MQTTX-style topic/payload messages (from mock stream)
     if (data.sensorType === 'payload' && typeof data.value === 'object') {
       if (data.value.productID || data.value.productId || data.value.productName) {
         const productID = data.value.productID || data.value.productId || 'UNKNOWN';
         const productName = data.value.productName || 'Unknown Product';
-        import('./services/productionService').then(({ incrementUnits, addProductToLog }) => {
-          const logEntry = addProductToLog(selectedDevice, { productID, productName });
-          setProductionLog(prev => [...prev, logEntry].slice(-100));
-          setSensorData(prev => ({ ...prev, units: incrementUnits(selectedDevice) }));
-        });
+        const now = new Date();
+        const logEntry = {
+          id: `${now.getTime()}-${Math.random().toString(36).substr(2, 6)}`,
+          productID,
+          productName,
+          timestamp: now.toISOString(),
+          date: now.toLocaleDateString(),
+          time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        };
+        setProductionLog(prev => [...prev, logEntry].slice(-100));
         return;
       }
       const updates = {};
@@ -116,10 +129,10 @@ export default function App() {
     pushHistory(selectedDevice, data.sensorType, data.value, data.timestamp);
   }, [selectedDevice]);
 
-  // Persist target units
+  // ── Persist target units ───────────────────────────────────────────
   useEffect(() => { localStorage.setItem('targetUnits', targetUnits.toString()); }, [targetUnits]);
 
-  // Overall efficiency calculation
+  // ── Overall efficiency calculation ─────────────────────────────────
   useEffect(() => {
     if (sensorData.units != null && targetUnits > 0) {
       const produced = sensorData.units;
@@ -131,7 +144,7 @@ export default function App() {
     }
   }, [sensorData.units, targetUnits]);
 
-  // OEE calculation (recalculates every 60s)
+  // ── OEE calculation (recalculates every 60s) ──────────────────────
   useEffect(() => {
     const calc = () => {
       const now = new Date();
@@ -156,7 +169,7 @@ export default function App() {
     return () => clearInterval(id);
   }, [sensorData.units, targetUnits, isEmergencyStopped]);
 
-  // Air Quality Index (weighted: temp 30%, humidity 30%, co2 40%)
+  // ── Air Quality Index (weighted: temp 30%, humidity 30%, co2 40%) ──
   useEffect(() => {
     const { temperature: temp, humidity, co2 } = sensorData;
     if (temp === undefined && humidity === undefined && co2 === undefined) return;
@@ -187,31 +200,26 @@ export default function App() {
     setSensorData(prev => ({ ...prev, airQuality: aqi }));
   }, [sensorData.temperature, sensorData.humidity, sensorData.co2]);
 
-  // Factory status from emergency stop
+  // ── Factory status from emergency stop ─────────────────────────────
   useEffect(() => { setFactoryStatus(isEmergencyStopped ? 'STOPPED' : 'RUNNING'); }, [isEmergencyStopped]);
 
-  // Emergency stop handler
+  // ── Emergency stop handler (Demo — no API calls) ───────────────────
   const handleEmergencyStop = useCallback(async () => {
     setIsEmergencyStopped(true);
     setFactoryStatus('STOPPED');
-    try {
-      webSocketClient?.sendMachineControlCommand?.('STOP');
-      const { updateStateDetails } = await import('./services/deviceService.js');
-      await updateStateDetails(selectedDevice, 'machineControl', {
-        status: 'STOP', reason: 'EMERGENCY STOP', timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error('[App] Emergency stop command failed:', error);
-    }
+    // Demo mode — just log
+    await mockDataService.sendCommand(selectedDevice, 'machineControl', {
+      status: 'STOP', reason: 'EMERGENCY STOP', timestamp: new Date().toISOString(),
+    });
   }, [selectedDevice]);
 
   // Resume system handler
   const handleResumeSystem = useCallback(() => {
     setIsEmergencyStopped(false);
-    window.location.reload();
+    setFactoryStatus('RUNNING');
   }, []);
 
-  // Smart alert notifications — fire only on critical state ENTRY
+  // ── Smart alert notifications — fire only on critical state ENTRY ──
   useEffect(() => {
     const checkEntry = (key, value, threshold, condition) => {
       if (value == null) return false;
@@ -252,93 +260,34 @@ export default function App() {
     });
   }, [sensorData, thresholds, selectedDevice]);
 
-  // Fetch products & units from backend on mount
+  // ═══════════════════════════════════════════════════════════════════════
+  //  DEMO MODE — Mock stream replaces WebSocket connection + subscription
+  // ═══════════════════════════════════════════════════════════════════════
+
   useEffect(() => {
-    const fetchInitialData = async () => {
-      const device = localStorage.getItem('selectedDevice') || 'devicetestuc';
-      try {
-        const [backendUnits, productData] = await Promise.all([
-          getCurrentUnitsFromBackend(device),
-          getProductsIn24Hours(device),
-        ]);
-        if (backendUnits > 0) {
-          setUnitsFromBackend(device, backendUnits);
-          setSensorData(prev => ({ ...prev, units: backendUnits }));
-        }
-        if (productData.count > 0) setProducts24h(productData);
-      } catch (error) {
-        console.warn('[App] Initial data fetch failed:', error.message);
-      }
-    };
-    fetchInitialData();
-  }, []);
+    // Start the mock real-time stream for the currently selected device
+    const cleanup = mockDataService.startStream(selectedDevice, handleSensorData);
+    console.log(`🎭 [Demo] Streaming mock data for ${selectedDevice}`);
+    return cleanup;
+  }, [selectedDevice, handleSensorData]);
 
-  // WebSocket connection lifecycle
-  useEffect(() => {
-    const init = async () => {
-      try {
-        setIsConnecting(true);
-        webSocketClient.onConnect(() => {
-          setIsWebSocketConnected(true);
-          setIsConnecting(false);
-        });
-
-        webSocketClient.onDisconnect(() => {
-          setIsWebSocketConnected(false);
-        });
-
-        await webSocketClient.connect();
-      } catch (error) {
-        console.error('[App] WebSocket init failed:', error);
-        setIsConnecting(false);
-      }
-    };
-
-    const timer = setTimeout(init, 300);
-    return () => { clearTimeout(timer); webSocketClient.disconnect(); };
-  }, []);
-
-  // Device subscription management
-  useEffect(() => {
-    if (isWebSocketConnected && selectedDevice) {
-      return webSocketClient.subscribeToDevice(selectedDevice, handleSensorData);
-    }
-  }, [selectedDevice, isWebSocketConnected, handleSensorData]);
-
-  // Device change — reset stale data and fetch backend state
-  const handleDeviceChange = async (deviceId) => {
-    setSensorData({ ...INITIAL_SENSOR_DATA });
+  // ── Device change — reset stale data and load mock snapshot ────────
+  const handleDeviceChange = (deviceId) => {
+    // Stop current stream & reset
+    mockDataService.stopStream();
     prevCriticalStatesRef.current = {};
 
-    let productionData = getProductionData(deviceId);
-    const productionLogData = getProductionLog(deviceId);
+    // Load snapshot + production log for the new device
+    const snap = mockDataService.getSensorSnapshot(deviceId);
+    setSensorData({ ...INITIAL_SENSOR_DATA, ...snap });
+    setProductionLog(mockDataService.generateProductionLog(deviceId));
+    setProducts24h(mockDataService.generateProducts24h(deviceId));
 
-    // Always attempt to fetch latest data from backend (regardless of WS status)
-    try {
-      const [backendUnits, productData] = await Promise.all([
-        getCurrentUnitsFromBackend(deviceId),
-        getProductsIn24Hours(deviceId),
-      ]);
-      if (backendUnits > 0) {
-        setUnitsFromBackend(deviceId, backendUnits);
-        productionData = getProductionData(deviceId);
-      }
-      setProducts24h(productData);
-    } catch (error) {
-      console.warn('[App] Could not fetch device data:', error.message);
-      setProducts24h({ count: 0, products: [] });
-    }
-
-    if (productionData.units !== undefined) {
-      setSensorData(prev => ({ ...prev, units: productionData.units }));
-    }
-
-    setProductionLog(productionLogData);
     setSelectedDevice(deviceId);
     localStorage.setItem('selectedDevice', deviceId);
   };
 
-  // Persist active tab
+  // ── Persist active tab ─────────────────────────────────────────────
   useEffect(() => { localStorage.setItem('activeTab', activeTab); }, [activeTab]);
   useEffect(() => { localStorage.setItem('selectedDevice', selectedDevice); }, [selectedDevice]);
 
@@ -346,6 +295,13 @@ export default function App() {
   const togglePin = () => {
     setIsSidebarPinned(!isSidebarPinned);
     if (!isSidebarPinned) setIsSidebarOpen(true);
+  };
+
+  // ── Dummy webSocketClient shim so child components don't crash ─────
+  const demoWsClient = {
+    sendMachineControlCommand: (cmd) => mockDataService.sendCommand(selectedDevice, 'machineControl', { status: cmd }),
+    sendCommand: (topic, payload) => mockDataService.sendCommand(selectedDevice, topic, payload),
+    isReady: true,
   };
 
   return (
@@ -385,7 +341,7 @@ export default function App() {
               bellClicked={bellClicked}
               thresholds={thresholds}
               sensorData={sensorData}
-              webSocketClient={webSocketClient}
+              webSocketClient={demoWsClient}
               selectedDevice={selectedDevice}
               devices={devices}
               alerts={alerts}
@@ -405,7 +361,7 @@ export default function App() {
               thresholds={thresholds}
               setThresholds={setThresholds}
               currentValues={sensorData}
-              webSocketClient={webSocketClient}
+              webSocketClient={demoWsClient}
               selectedDevice={selectedDevice}
               controlMode={controlMode}
               setControlMode={setControlMode}

@@ -1,13 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { History, Calendar, Download, Filter, Search, TrendingUp, AlertTriangle, Eye, EyeOff, X, Loader2, RefreshCw, Clock, Database, Activity } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend, CartesianGrid, ReferenceLine } from 'recharts';
-import {
-  fetchAllHistoricalData,
-  getOEEChartData,
-  getMTBFHours,
-  analyzeAlertForDowntime,
-  getTimeRange,
-} from '../services/historicalDataService';
+import { mockDataService } from '../services/MockDataService';
 
 
 const HistoricalWindow = ({
@@ -76,7 +70,7 @@ const HistoricalWindow = ({
   const [downtimeData, setDowntimeData] = useState([]);
 
 
-  // Fetch historical data from HTTP API
+  // Fetch historical data — DEMO MODE (no HTTP calls)
   const loadHistoricalData = useCallback(async () => {
     if (!selectedDevice) {
       console.log('⚠️ [Historical] No device selected');
@@ -87,28 +81,25 @@ const HistoricalWindow = ({
     setDataError(null);
 
     try {
-      console.log(`📊 [Historical] Loading data for ${selectedDevice}, range: ${dateRange}`);
+      console.log(`📊 [Historical] Generating mock data for ${selectedDevice}, range: ${dateRange}`);
 
-      // Fetch all data using the historical data service
-      const result = await fetchAllHistoricalData(selectedDevice, dateRange);
+      // Generate all historical data from MockDataService (instant, no HTTP)
+      const result = mockDataService.generateFullHistoricalData(selectedDevice, dateRange);
 
-      // Production data - use API data or create fallback from current values
+      // Production data
       let prodData = result.productionData || [];
       if (prodData.length === 0 && currentUnits !== undefined && currentUnits !== null) {
-        // Create a single data point from current real-time value
         const today = new Date().toISOString().split('T')[0];
         prodData = [{ date: today, produced: currentUnits, target: targetUnits }];
-        console.log(`📊 [Historical] Using current units as fallback: ${currentUnits}`);
       }
       setProductionData(prodData);
 
-      // Machine performance data - use API data or create fallback
+      // Machine performance data
       let machineData = result.machinePerformanceData || [];
       if (machineData.length === 0 && sensorHistory && sensorHistory[selectedDevice]) {
         const deviceHistory = sensorHistory[selectedDevice];
         const now = new Date();
         const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
         machineData = [{
           time: timeStr,
           timestamp: now.toISOString(),
@@ -119,36 +110,33 @@ const HistoricalWindow = ({
       }
       setMachinePerformanceData(machineData);
 
-      // Environmental data - use API data or create fallback (AQI is calculated, not graphed)
+      // Environmental data
       let envData = result.environmentalData || [];
       if (envData.length === 0 && sensorHistory && sensorHistory[selectedDevice]) {
         const deviceHistory = sensorHistory[selectedDevice];
         const now = new Date();
         const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
         envData = [{
           time: timeStr,
           timestamp: now.toISOString(),
           temperature: deviceHistory.temperature?.[0]?.value || null,
           humidity: deviceHistory.humidity?.[0]?.value || null,
           co2: deviceHistory.co2?.[0]?.value || null,
-          // AQI removed - calculated client-side, not graphed
         }];
       }
       setEnvironmentalData(envData);
 
-      // OEE and Downtime from localStorage (calculated locally)
+      // OEE, Downtime, MTBF from mock
       setOeeData(result.oeeData || [{ week: new Date().toISOString().split('T')[0], oee: 0 }]);
       setDowntimeData(result.downtimeData || []);
       setMtbfHours(result.mtbf || 0);
 
       setLastUpdated(new Date());
-      console.log(`✅ [Historical] Data loaded successfully. Production: ${prodData.length}, Machine: ${machineData.length}, Env: ${envData.length}`);
+      console.log(`✅ [Historical] Mock data loaded. Production: ${prodData.length}, Machine: ${machineData.length}, Env: ${envData.length}`);
     } catch (error) {
-      console.error(`❌ [Historical] Error loading data:`, error);
-      setDataError(error.message || 'Failed to load historical data');
+      console.error(`❌ [Historical] Error generating mock data:`, error);
+      setDataError(error.message || 'Failed to generate historical data');
 
-      // On error, still try to show current data
       if (currentUnits !== undefined && currentUnits !== null) {
         const today = new Date().toISOString().split('T')[0];
         setProductionData([{ date: today, produced: currentUnits, target: targetUnits }]);
@@ -167,15 +155,11 @@ const HistoricalWindow = ({
     return () => clearInterval(intervalId);
   }, [loadHistoricalData]);
 
-  // Analyze alerts for downtime tracking
+  // Analyze alerts for downtime tracking (local mock logic — no API)
   useEffect(() => {
     if (alerts && alerts.length > 0 && selectedDevice) {
-      // Process new alerts for downtime analysis
-      const lastAlert = alerts[0]; // Most recent alert
-      if (lastAlert) {
-        analyzeAlertForDowntime(lastAlert, selectedDevice);
-        setMtbfHours(getMTBFHours());
-      }
+      // In demo mode we just log — no real downtime tracking needed
+      console.log('🎭 [Demo] Alert analysis skipped (mock mode)');
     }
   }, [alerts, selectedDevice]);
 

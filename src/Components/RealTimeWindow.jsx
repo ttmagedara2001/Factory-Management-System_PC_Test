@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import EnvironmentCard from './EnvironmentCard';
 import Gauge from './Gauge';
-import { updateStateDetails } from '../services/deviceService.js';
+import { mockDataService } from '../services/MockDataService';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VENTILATION AUTO-CONTROL THRESHOLDS
@@ -94,7 +94,7 @@ const RealTimeWindow = ({ thresholds, sensorData, selectedDevice, controlMode = 
           setIsSendingCommand(true);
           lastAutoCommandRef.current = now;
 
-          await updateStateDetails(selectedDevice, 'ventilation', {
+          await mockDataService.sendCommand(selectedDevice, 'ventilation', {
             ventilation: command,
             mode: 'auto',
             reason: reason,
@@ -149,7 +149,7 @@ const RealTimeWindow = ({ thresholds, sensorData, selectedDevice, controlMode = 
     try {
       console.log(`📡 [RealTimeWindow] Sending ventilation command to ${selectedDevice}: ${command}`);
 
-      await updateStateDetails(selectedDevice, 'ventilation', {
+      await mockDataService.sendCommand(selectedDevice, 'ventilation', {
         ventilation: command,
         mode: 'manual'
       });
