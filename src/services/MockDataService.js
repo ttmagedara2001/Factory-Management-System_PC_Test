@@ -364,11 +364,10 @@ class MockDataService {
   // -----------------------------------------------------------------------
 
   /**
-   * Simulate sending a command. Logs to console and resolves immediately.
+   * Simulate sending a command. Resolves immediately with success response.
    * @returns {Promise<{ status: 'Success' }>}
    */
   async sendCommand(deviceId, topic, payload) {
-    console.log(`🎭 [Demo] Command → ${deviceId}/${topic}`, payload);
     // Simulate a tiny network delay
     await new Promise((r) => setTimeout(r, 150));
     return { status: 'Success', data: { ...payload, timestamp: new Date().toISOString() } };

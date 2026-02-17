@@ -207,7 +207,16 @@ export default function App() {
   const handleEmergencyStop = useCallback(async () => {
     setIsEmergencyStopped(true);
     setFactoryStatus('STOPPED');
-    // Demo mode — just log
+
+    // Reset all dashboard data for a clean state
+    const snap = mockDataService.getSensorSnapshot(selectedDevice);
+    setSensorData({ ...INITIAL_SENSOR_DATA, ...snap });
+    setProductionLog(mockDataService.generateProductionLog(selectedDevice));
+    setProducts24h(mockDataService.generateProducts24h(selectedDevice));
+    setAlerts([]); // Clear all alerts
+    prevCriticalStatesRef.current = {}; // Reset alert states
+
+    // Send stop command
     await mockDataService.sendCommand(selectedDevice, 'machineControl', {
       status: 'STOP', reason: 'EMERGENCY STOP', timestamp: new Date().toISOString(),
     });
@@ -267,7 +276,6 @@ export default function App() {
   useEffect(() => {
     // Start the mock real-time stream for the currently selected device
     const cleanup = mockDataService.startStream(selectedDevice, handleSensorData);
-    console.log(`🎭 [Demo] Streaming mock data for ${selectedDevice}`);
     return cleanup;
   }, [selectedDevice, handleSensorData]);
 

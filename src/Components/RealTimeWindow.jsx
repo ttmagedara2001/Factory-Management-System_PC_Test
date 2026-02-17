@@ -79,7 +79,6 @@ const RealTimeWindow = ({ thresholds, sensorData, selectedDevice, controlMode = 
         // Prevent duplicate commands within 5 seconds
         const now = Date.now();
         if (lastAutoCommandRef.current && (now - lastAutoCommandRef.current) < 5000) {
-          console.log('[Auto Ventilation] Skipping - command sent recently');
           return;
         }
 
@@ -87,8 +86,6 @@ const RealTimeWindow = ({ thresholds, sensorData, selectedDevice, controlMode = 
         const reason = targetState
           ? `Critical levels detected - Temp: ${temperature}°C, Humidity: ${humidity}%, CO2: ${co2}%`
           : `Levels normalized - Temp: ${temperature}°C, Humidity: ${humidity}%, CO2: ${co2}%`;
-
-        console.log(`🤖 [Auto Ventilation] ${command.toUpperCase()} - ${reason}`);
 
         try {
           setIsSendingCommand(true);
@@ -106,10 +103,8 @@ const RealTimeWindow = ({ thresholds, sensorData, selectedDevice, controlMode = 
             }
           });
 
-          console.log(`✅ [Auto Ventilation] Command sent successfully: ${command}`);
           setVentilation(targetState);
         } catch (error) {
-          console.error('❌ [Auto Ventilation] Failed to send command:', error);
         } finally {
           setIsSendingCommand(false);
         }
@@ -130,12 +125,10 @@ const RealTimeWindow = ({ thresholds, sensorData, selectedDevice, controlMode = 
   const handleVentilationToggle = async () => {
     // Prevent toggle in auto mode
     if (isAutoMode) {
-      console.warn('[RealTimeWindow] Ventilation toggle disabled in AUTO mode');
       return;
     }
 
     if (!selectedDevice) {
-      console.warn('[RealTimeWindow] No device selected for ventilation control');
       return;
     }
 
@@ -147,17 +140,13 @@ const RealTimeWindow = ({ thresholds, sensorData, selectedDevice, controlMode = 
     setIsSendingCommand(true);
 
     try {
-      console.log(`📡 [RealTimeWindow] Sending ventilation command to ${selectedDevice}: ${command}`);
-
       await mockDataService.sendCommand(selectedDevice, 'ventilation', {
         ventilation: command,
         mode: 'manual'
       });
 
-      console.log(`✅ [RealTimeWindow] Ventilation command sent successfully: ${command}`);
       setVentilation(newVentilation);
     } catch (error) {
-      console.error('❌ [RealTimeWindow] Failed to send ventilation command:', error);
       alert('Failed to update ventilation. Please try again.');
     } finally {
       setIsSendingCommand(false);
