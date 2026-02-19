@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, User, ChevronDown, Menu, Wifi, Radio } from 'lucide-react';
-import { useAuth } from '../Context/AuthContext.jsx';
 
 const Header = ({ 
   toggleSidebar, 
@@ -15,8 +14,6 @@ const Header = ({
   isConnecting = false,
   factoryStatus = 'RUNNING'
 }) => {
-  const { auth } = useAuth();
-
   // Factory status configuration
   const statusConfig = {
     RUNNING: { bg: 'bg-green-500', text: 'text-white', dot: 'bg-green-300', label: 'RUNNING' },
@@ -26,12 +23,7 @@ const Header = ({
   };
   const status = statusConfig[factoryStatus] || statusConfig.RUNNING;
 
-  // Extract username from email (before @) or use full userId
-  const username = auth?.userId
-    ? auth.userId.includes('@')
-      ? auth.userId.split('@')[0].toUpperCase()
-      : auth.userId.toUpperCase()
-    : 'USER1233';
+  const username = 'DEMO USER';
   const [showDeviceDropdown, setShowDeviceDropdown] = useState(false);
   const dropdownRef = useRef(null);
 

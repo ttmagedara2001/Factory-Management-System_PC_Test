@@ -32,7 +32,8 @@ const HistoricalWindow = ({
     production: true,
     oee: true,
     machinePerformance: true,
-    environmental: true
+    environmental: true,
+    products24h: true,
   });
 
   // Environmental metrics visibility state (AQI is calculated, not graphed)
@@ -194,70 +195,195 @@ const HistoricalWindow = ({
     setSelectedCharts(newState);
   };
 
-  const convertToCSV = (data, headers) => {
-    const csvRows = [];
-    csvRows.push(headers.join(','));
+  // ─── CSV EXPORT HELPERS ────────────────────────────────────────────────────
 
-    data.forEach(row => {
-      const values = headers.map(header => {
-        const value = row[header.toLowerCase().replace(' ', '')];
-        return `"${value}"`;
-      });
-      csvRows.push(values.join(','));
-    });
-
-    return csvRows.join('\n');
+  /**
+   * Safely format a single CSV cell:
+   *  - Wraps in double quotes
+   *  - Escapes any embedded double quotes by doubling them ("" per RFC 4180)
+   */
+  const csvCell = (value) => {
+    if (value === null || value === undefined) return '""';
+    return '"' + String(value).replace(/"/g, '""') + '"';
   };
 
+  /** Join an array of values into a single CSV row */
+  const csvRow = (...cells) => cells.map(csvCell).join(',');
+
+  /**
+   * Build a comprehensive single-file CSV report with:
+   *  - UTF-8 BOM  (ensures Excel opens without encoding issues)
+   *  - Report metadata header (device, status, range, export time)
+   *  - Labelled sections per chart type, each with column headers + units
+   *  - Computed efficiency % for production rows
+   *  - Full ISO timestamps alongside human-readable time labels
+   *  - Proper null/undefined → empty string handling
+   */
+  const buildReportCSV = () => {
+    const now = new Date();
+    const exportTimestamp = now.toLocaleString([], {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+
+    // Resolve human-readable device name from the devices prop
+    const deviceInfo = devices.find(d => d.id === selectedDevice);
+    const deviceName = deviceInfo ? deviceInfo.name : selectedDevice;
+
+    const rangeLabel = exportDateRange === 'current' ? dateRange : exportDateRange;
+    const separator = csvRow('='.repeat(72));
+    const blank = '';
+
+    const lines = [];
+
+    // ── REPORT HEADER ────────────────────────────────────────────────────────
+    lines.push(csvRow('NEXUS CORE — FACTORY MANAGEMENT SYSTEM'));
+    lines.push(csvRow('Data Export Report'));
+    lines.push(blank);
+    lines.push(csvRow('Export Generated', exportTimestamp));
+    lines.push(csvRow('Device Name',      deviceName));
+    lines.push(csvRow('Device ID',        selectedDevice));
+    lines.push(csvRow('Factory Status',   factoryStatus));
+    lines.push(csvRow('Time Range',       rangeLabel));
+    lines.push(csvRow('Production Points',         productionData.length));
+    lines.push(csvRow('Machine Performance Points', machinePerformanceData.length));
+    lines.push(csvRow('Environmental Points',       environmentalData.length));
+    lines.push(csvRow('Products (24h)',             products24h?.count ?? 0));
+    lines.push(blank);
+    lines.push(separator);
+    lines.push(blank);
+
+    // ── SECTION 1: PRODUCTION VOLUME ─────────────────────────────────────────
+    if (selectedCharts.production) {
+      lines.push(csvRow('SECTION 1 — PRODUCTION VOLUME'));
+      lines.push(csvRow('Date', 'Units Produced', 'Target Units', 'Efficiency (%)'));
+      if (productionData.length > 0) {
+        productionData.forEach(row => {
+          const eff = row.target > 0
+            ? (Math.min((row.produced ?? 0) / row.target, 1) * 100).toFixed(1)
+            : '0.0';
+          lines.push(csvRow(
+            row.date    ?? '',
+            row.produced != null ? row.produced : '',
+            row.target  != null ? row.target  : '',
+            eff,
+          ));
+        });
+      } else {
+        lines.push(csvRow('No production data available for the selected range.'));
+      }
+      lines.push(blank);
+    }
+
+    // ── SECTION 2: OEE TRENDS (WEEKLY) ──────────────────────────────────────
+    if (selectedCharts.oee) {
+      lines.push(csvRow('SECTION 2 — OEE TRENDS (WEEKLY)'));
+      lines.push(csvRow('Week Starting', 'OEE (%)', 'Availability (%)', 'Performance (%)', 'Quality (%)'));
+      const oeeRows = Array.isArray(oeeData) ? oeeData : [];
+      if (oeeRows.length > 0) {
+        oeeRows.forEach(row => {
+          lines.push(csvRow(
+            row.week         ?? '',
+            row.oee          != null ? Number(row.oee).toFixed(1)          : '',
+            row.availability != null ? Number(row.availability).toFixed(1) : '',
+            row.performance  != null ? Number(row.performance).toFixed(1)  : '',
+            row.quality      != null ? Number(row.quality).toFixed(1)      : '',
+          ));
+        });
+      } else {
+        lines.push(csvRow('No OEE data available for the selected range.'));
+      }
+      lines.push(blank);
+    }
+
+    // ── SECTION 3: MACHINE PERFORMANCE ──────────────────────────────────────
+    if (selectedCharts.machinePerformance) {
+      lines.push(csvRow('SECTION 3 — MACHINE PERFORMANCE'));
+      lines.push(csvRow('Timestamp (ISO 8601)', 'Time', 'Vibration (mm/s)', 'Pressure (bar)', 'Noise (dB)'));
+      if (machinePerformanceData.length > 0) {
+        machinePerformanceData.forEach(row => {
+          lines.push(csvRow(
+            row.timestamp  ?? '',
+            row.time       ?? '',
+            row.vibration  != null ? Number(row.vibration).toFixed(2) : '',
+            row.pressure   != null ? Number(row.pressure).toFixed(2)  : '',
+            row.noise      != null ? Number(row.noise).toFixed(1)     : '',
+          ));
+        });
+      } else {
+        lines.push(csvRow('No machine performance data available for the selected range.'));
+      }
+      lines.push(blank);
+    }
+
+    // ── SECTION 4: ENVIRONMENTAL DATA ────────────────────────────────────────
+    if (selectedCharts.environmental) {
+      lines.push(csvRow('SECTION 4 — ENVIRONMENTAL DATA'));
+      lines.push(csvRow('Timestamp (ISO 8601)', 'Time', 'Temperature (°C)', 'Humidity (%)', 'CO2 (%)'));
+      if (environmentalData.length > 0) {
+        environmentalData.forEach(row => {
+          lines.push(csvRow(
+            row.timestamp   ?? '',
+            row.time        ?? '',
+            row.temperature != null ? Number(row.temperature).toFixed(1) : '',
+            row.humidity    != null ? Number(row.humidity).toFixed(1)    : '',
+            row.co2         != null ? Number(row.co2).toFixed(1)         : '',
+          ));
+        });
+      } else {
+        lines.push(csvRow('No environmental data available for the selected range.'));
+      }
+      lines.push(blank);
+    }
+
+    // ── SECTION 5: PRODUCTS PRODUCED (LAST 24H) ──────────────────────────────
+    if (selectedCharts.products24h && products24h && products24h.products && products24h.products.length > 0) {
+      lines.push(csvRow('SECTION 5 — PRODUCTS PRODUCED (LAST 24 HOURS)'));
+      lines.push(csvRow('#', 'Product ID', 'Product Name', 'Date', 'Time'));
+      products24h.products.forEach((product, i) => {
+        lines.push(csvRow(
+          i + 1,
+          product.productID   ?? '',
+          product.productName ?? '',
+          product.date        ?? '',
+          product.time        ?? '',
+        ));
+      });
+      lines.push(blank);
+    }
+
+    // ── REPORT FOOTER ────────────────────────────────────────────────────────
+    lines.push(separator);
+    lines.push(csvRow('End of Report'));
+    lines.push(csvRow('System', 'Nexus Core — Factory Management System'));
+    lines.push(csvRow('Generated', exportTimestamp, 'Device', deviceName));
+
+    // \uFEFF = UTF-8 BOM — makes Excel automatically detect UTF-8 encoding
+    // \r\n   = Windows-style line endings for maximum spreadsheet compatibility
+    return '\uFEFF' + lines.join('\r\n');
+  };
+
+  /** Trigger a browser download for a CSV string */
   const downloadCSV = (csvContent, filename) => {
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
   };
 
+  /** Handle the Export button click — build and download the report CSV */
   const handleExport = () => {
-    const timestamp = new Date().toISOString().split('T')[0];
+    const dateStr       = new Date().toISOString().split('T')[0];
+    const deviceSafe    = (selectedDevice || 'device').replace(/[^a-z0-9]/gi, '_');
+    const filename      = `nexus_factory_report_${deviceSafe}_${dateStr}.csv`;
 
-    // Determine which data to export based on selected range
-    let exportRange, exportGran;
-    if (exportDateRange === 'current') {
-      exportRange = dateRange;
-      exportGran = granularity;
-    } else {
-      exportRange = exportDateRange;
-      exportGran = 'daily'; // Default granularity for export
-    }
-
-    // Generate data for export range
-    const exportMachineData = machinePerformanceData;
-    const exportEnvData = environmentalData;
-    const exportProdData = productionData;
-    const exportOEEData = oeeData;
-
-    if (selectedCharts.production) {
-      const csv = convertToCSV(exportProdData, ['Date', 'Produced', 'Target']);
-      downloadCSV(csv, `production_volume_${timestamp}.csv`);
-    }
-
-    if (selectedCharts.oee) {
-      const csv = convertToCSV(exportOEEData, ['Week', 'OEE']);
-      downloadCSV(csv, `oee_trends_${timestamp}.csv`);
-    }
-
-    if (selectedCharts.machinePerformance) {
-      const csv = convertToCSV(exportMachineData, ['Time', 'Vibration', 'Pressure', 'Noise']);
-      downloadCSV(csv, `machine_performance_${timestamp}.csv`);
-    }
-
-    if (selectedCharts.environmental) {
-      const csv = convertToCSV(exportEnvData, ['Time', 'Temperature', 'Humidity', 'CO2', 'AQI']);
-      downloadCSV(csv, `environmental_trends_${timestamp}.csv`);
-    }
-
+    const csvContent = buildReportCSV();
+    downloadCSV(csvContent, filename);
     setShowExportDialog(false);
   };
 
@@ -701,7 +827,10 @@ const HistoricalWindow = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center p-4 bg-white border-b border-slate-200">
-              <h3 className="text-sm font-bold text-slate-800 uppercase">Export Data</h3>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 uppercase">Export Data</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Downloads as a single formatted .csv file</p>
+              </div>
               <button
                 onClick={() => setShowExportDialog(false)}
                 className="text-slate-400 hover:text-slate-600 transition-colors"
@@ -806,6 +935,18 @@ const HistoricalWindow = ({
                     <span className="text-slate-700">Environmental Trends</span>
                   </label>
 
+                  <label className="flex items-center gap-2 cursor-pointer text-xs">
+                    <input
+                      type="checkbox"
+                      checked={selectedCharts.products24h}
+                      onChange={() => toggleChartSelection('products24h')}
+                      className="w-3 h-3 text-blue-500 rounded"
+                    />
+                    <span className="text-slate-700">Products (Last 24h)</span>
+                    {products24h?.count > 0 && (
+                      <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded text-[9px] font-bold">{products24h.count} items</span>
+                    )}
+                  </label>
 
                 </div>
               </div>
@@ -821,9 +962,10 @@ const HistoricalWindow = ({
               <button
                 onClick={handleExport}
                 disabled={!Object.values(selectedCharts).some(val => val)}
-                className="flex-1 px-3 py-2 bg-blue-500 text-white rounded-lg text-xs font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-lg text-xs font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Export
+                <Download size={12} />
+                Download Report (.csv)
               </button>
             </div>
           </div>

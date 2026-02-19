@@ -30,6 +30,7 @@ export default function App() {
   const [factoryStatus, setFactoryStatus] = useState('RUNNING');
   const [controlMode, setControlMode] = useState('manual');
   const [isEmergencyStopped, setIsEmergencyStopped] = useState(false);
+  const [dashboardKey, setDashboardKey] = useState(0); // Force refresh key
   const [targetUnits, setTargetUnits] = useState(() => {
     const saved = localStorage.getItem('targetUnits');
     return saved ? parseInt(saved, 10) : 1024;
@@ -216,6 +217,9 @@ export default function App() {
     setAlerts([]); // Clear all alerts
     prevCriticalStatesRef.current = {}; // Reset alert states
 
+    // Force dashboard to re-render completely
+    setDashboardKey(prev => prev + 1);
+
     // Send stop command
     await mockDataService.sendCommand(selectedDevice, 'machineControl', {
       status: 'STOP', reason: 'EMERGENCY STOP', timestamp: new Date().toISOString(),
@@ -346,6 +350,7 @@ export default function App() {
         <main className="flex-1 overflow-y-auto relative">
           {activeTab === 'dashboard' && (
             <Dashboard
+              key={dashboardKey}
               bellClicked={bellClicked}
               thresholds={thresholds}
               sensorData={sensorData}
