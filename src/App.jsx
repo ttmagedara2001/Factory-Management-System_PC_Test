@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import SidePanel from './Components/SidePanel';
+import BrandHeader from './Components/BrandHeader';
 import Header from './Components/Header';
 import Dashboard from './Components/Dashboard';
 import SettingsWindow from './Components/SettingsWindow';
@@ -332,6 +333,10 @@ export default function App() {
       />
 
       <div className="flex-1 flex flex-col min-w-0">
+        {/* Top brand / navigation bar */}
+        <BrandHeader />
+
+        {/* Sub-navigation header (hamburger, device select, etc.) */}
         <Header
           toggleSidebar={toggleSidebar}
           setBellClicked={setBellClicked}

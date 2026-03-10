@@ -21,26 +21,27 @@ const SidePanel = ({
 
   return (
     <>
-      {/* Mobile Backdrop Overlay */}
+      {/* Mobile Backdrop Overlay — sits below BrandHeader (top-[88px]) */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
+          className="fixed top-14 sm:top-22 inset-x-0 bottom-0 bg-black/30 z-40 lg:hidden"
           onClick={onMouseLeave}
         />
       )}
 
       <div
-        className={`bg-[#E8F1F8] flex flex-col h-full border-r border-slate-200 transition-all duration-300 ease-in-out 
+        className={`bg-[#E8F1F8] flex flex-col border-r border-slate-200 transition-all duration-300 ease-in-out 
           ${isOpen ? 'w-56 sm:w-64' : 'w-0'} 
-          fixed lg:relative z-50 lg:z-auto
-          overflow-hidden`}
+          fixed top-14 sm:top-22 left-0 h-[calc(100vh-56px)] sm:h-[calc(100vh-88px)] z-50
+          lg:relative lg:top-0 lg:left-auto lg:h-full lg:z-auto
+          overflow-x-hidden overflow-y-auto`}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       >
         {/* Logo Area */}
         <div className="p-4 sm:p-6 flex items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-8 sm:w-10 h-8 sm:h-10 bg-yellow-400 rounded-md flex items-center justify-center shadow-sm relative overflow-hidden flex-shrink-0">
+            <div className="w-8 sm:w-10 h-8 sm:h-10 bg-yellow-400 rounded-md flex items-center justify-center shadow-sm relative overflow-hidden shrink-0">
               {/* Simple visual approximation of a robot arm icon */}
               <div className="w-5 sm:w-6 h-0.5 sm:h-1 bg-slate-800 absolute top-3 sm:top-4 left-1 rotate-45"></div>
               <div className="w-1.5 sm:w-2 h-1.5 sm:h-2 bg-slate-800 rounded-full absolute top-1.5 sm:top-2 right-1.5 sm:right-2"></div>
@@ -50,7 +51,7 @@ const SidePanel = ({
           </div>
           <button
             onClick={togglePin}
-            className={`p-1 sm:p-1.5 rounded-lg transition-colors flex-shrink-0 ${isPinned ? 'bg-blue-500 text-white' : 'hover:bg-slate-200 text-slate-600'}`}
+            className={`p-1 sm:p-1.5 rounded-lg transition-colors shrink-0 ${isPinned ? 'bg-blue-500 text-white' : 'hover:bg-slate-200 text-slate-600'}`}
             title={isPinned ? 'Unpin sidebar' : 'Pin sidebar'}
           >
             {isPinned ? <Pin size={16} /> : <PinOff size={16} />}
@@ -71,7 +72,7 @@ const SidePanel = ({
                     : 'text-slate-600 hover:bg-slate-200'
                   }`}
               >
-                <Icon size={18} className="flex-shrink-0" />
+                <Icon size={18} className="shrink-0" />
                 <span className="truncate">{item.label}</span>
               </button>
             );
