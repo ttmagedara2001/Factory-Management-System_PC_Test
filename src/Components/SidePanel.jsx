@@ -24,13 +24,13 @@ const SidePanel = ({
       {/* Mobile Backdrop Overlay — sits below BrandHeader (top-[88px]) */}
       {isOpen && (
         <div
-          className="fixed top-14 sm:top-22 inset-x-0 bottom-0 bg-black/30 z-40 lg:hidden"
+          className="portrait-mobile-top fixed top-14 sm:top-22 inset-x-0 bottom-0 bg-black/30 z-40 lg:hidden"
           onClick={onMouseLeave}
         />
       )}
 
       <div
-        className={`bg-[#E8F1F8] flex flex-col border-r border-slate-200 transition-all duration-300 ease-in-out 
+        className={`portrait-mobile-top portrait-mobile-sidenav bg-[#E8F1F8] flex flex-col border-r border-slate-200 transition-all duration-300 ease-in-out 
           ${isOpen ? 'w-56 sm:w-64' : 'w-0'} 
           fixed top-14 sm:top-22 left-0 h-[calc(100vh-56px)] sm:h-[calc(100vh-88px)] z-50
           lg:relative lg:top-0 lg:left-auto lg:h-full lg:z-auto

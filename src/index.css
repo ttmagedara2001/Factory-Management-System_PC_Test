@@ -115,3 +115,19 @@ code {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* ── Portrait mobile overrides (<640 px, portrait orientation) ────── */
+@media (orientation: portrait) and (max-width: 639px) {
+  /* Brand bar height is now auto (3-row layout) */
+  .brand-bar { height: auto !important; }
+  /* Dropdown sits below portrait row 2 */
+  .brand-bar-dropdown { top: 104px !important; }
+  /* Side nav top & height follow the taller 3-row brand bar */
+  .portrait-mobile-top { top: 220px !important; }
+  .portrait-mobile-sidenav { height: calc(100vh - 220px) !important; }
+}
+
+/* Override dropdown top for sm+ (desktop single-row brand bar) */
+@media (min-width: 640px) {
+  .brand-bar-dropdown { top: 88px !important; }
+}
